@@ -22,3 +22,9 @@ This project implements all three layers from scratch using only standard C arra
 
 requirements -
 1. wav file in folder.
+
+Honest Limits
+WAV Parsing: The parser strictly expects 16-bit uncompressed PCM WAV files. It will fail gracefully on other formats but cannot decode them.
+Math Optimization: The Fourier transform is calculated using a naive loop with standard sinf/cosf. It works, but it is $O(N^2)$ and significantly slower than a hardware-optimized FFT algorithm.
+Database Durability: The database is a flat binary file (audio.txt) that appends structs sequentially. It is not crash-safe and cannot handle concurrent writes from multiple processes.Filtering: 
+The secondary pass (filter2) is currently a stub; recommendations rely entirely on the primary hash collision filter.
