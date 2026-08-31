@@ -24,6 +24,7 @@ This project implements all three layers from scratch using only standard C arra
 
 requirements -
 1. wav file in folder.
+2. and to get recommendation you will need a database named audio.txt in the folder
 
 Honest Limits
 WAV Parsing: The parser strictly expects 16-bit uncompressed PCM WAV files. It will fail gracefully on other formats but cannot decode them.
