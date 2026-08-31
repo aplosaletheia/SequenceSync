@@ -15,7 +15,7 @@
 #define NUMBER_OF_TOP_FREQUENCIES 10
 #define BASE_FREQUENCY 100.f //hz
 #define MAX_FREQ 10000
-#define HASH_INTERVAL 5  //always smaller than the clip 
+#define HASH_INTERVAL 5  //always smaller than the clip
 #define SCATTER 10
 #define OFFSET 30
 
@@ -35,7 +35,7 @@ typedef struct
     unsigned int sampleRate;
     unsigned int byteRate;
     unsigned int dataSize; //in bytes
-    
+
     //additional info
     unsigned int sampleCount;
     float duration;
@@ -59,14 +59,14 @@ typedef struct
     ampBand_s ampBandFull; // ignore the last column
 } audioInfo_s;
 
-typedef struct 
+typedef struct
 {
     size_t numIds;
     audioInfo_s* audioInfos;
     size_t reserved;
 } audioCat_s;
 
-typedef struct 
+typedef struct
 {
     size_t numIds;
     size_t* audioIds;
@@ -115,11 +115,11 @@ int main()
     printf("booting up database...\n");
     audioCat_s catalogue = bootDatabase(&hashIndex);
     size_t currId = catalogue.numIds - 1;
-    
+
     input_s input = getInput();
     printf("decoding .wav file...\n");
     wavInfo_s wavInfo = wavDecoder(input.wavFile); //the samples will be in heap
-    
+
     audioInfo_s audioInfo;
     strcpy(audioInfo.name, input.name);
     audioInfo.audioId = currId + 1;
@@ -129,7 +129,7 @@ int main()
     audioInfo.ampBandclubbed = clubAmpBand(audioInfo.ampBandFull);
     printf("done\n");
 
-    
+
     //add to database
     if (input.command == 'a')
     {
@@ -147,12 +147,12 @@ int main()
         audioSet_s filteredAudios = {0, NULL};
         filter1(&filteredAudios, hashIndex, clipHashVals); //passing address so that i can change count..This will need to access the database
         filter2(&filteredAudios, catalogue, audioInfo);
-        for (size_t i = 0; i < filteredAudios.numIds; i++) 
+        for (size_t i = 0; i < filteredAudios.numIds; i++)
         {
             printf("%s, ", catalogue.audioInfos[filteredAudios.audioIds[i]].name);
         }
     }
-    
+
 }
 
 //function definitions
@@ -179,8 +179,17 @@ audioCat_s bootDatabase(hashIndex_s* hashIndex)
     FILE* bin = fopen("audio.txt", "rb");
     if (bin == NULL)
     {
-        printf("no data file, please make a .txt in the same folder as this\n");
-        exit(0);
+        printf("no data file, making a file in the same folder as this...\n");
+            bin = fopen("audio.txt", "wb");
+            if (bin != NULL)
+            {
+                fclose(bin);
+            }
+            else
+            {
+                printf("couldnt successfully make and open file..");
+            }
+            return catalogue;
     }
 
     while (1)
@@ -247,7 +256,7 @@ uint16_t readLE16(const unsigned char* b)
 {
     return (uint16_t)(b[0] | (b[1] << 8));
 }
-    
+
 wavInfo_s wavDecoder(FILE* wavFile)
 {
     wavInfo_s wavInfo;
@@ -341,7 +350,7 @@ wavInfo_s wavDecoder(FILE* wavFile)
 
     wavInfo.sampleCount = wavInfo.dataSize / sizeof(int16_t); // total samples across all channels
     wavInfo.duration = (float)wavInfo.dataSize / (float)wavInfo.byteRate; // seconds
-    
+
     return wavInfo;
 }
 
@@ -389,13 +398,13 @@ int shortFourier(const wavInfo_s* wavInfo, float* pWrite, size_t numOfTopFreq, s
     memset(temp, 0, sizeof(temp));
     size_t totalSamples = (size_t)(wavInfo->sampleRate*SHORT_TIME_PERIOD);
     size_t windowStart = (size_t)(col*SHORT_TIME_PERIOD*wavInfo->sampleRate);
-    
-    for (float freq = BASE_FREQUENCY; freq < MAX_FREQ; freq += 1 / SHORT_TIME_PERIOD) 
+
+    for (float freq = BASE_FREQUENCY; freq < MAX_FREQ; freq += 1 / SHORT_TIME_PERIOD)
     {
         float amp = 0;
         float x = 0;
         float y = 0;
-        
+
         float delta = (2*M_PI*freq)/wavInfo->sampleRate; //increase per sample
         float deltaSin = sinf(delta);
         float deltaCos = cosf(delta);
@@ -410,7 +419,7 @@ int shortFourier(const wavInfo_s* wavInfo, float* pWrite, size_t numOfTopFreq, s
             currCos = currCos*deltaCos - sinTemp*deltaSin;
         }
         amp = sqrtf(x*x + y*y) / freq;
-        for (size_t i = 0; i < numOfTopFreq; i++) 
+        for (size_t i = 0; i < numOfTopFreq; i++)
         {
             if(amp > temp[1][i])
             {
@@ -425,11 +434,11 @@ int shortFourier(const wavInfo_s* wavInfo, float* pWrite, size_t numOfTopFreq, s
             }
         }
     }
-    for (size_t i = 0; i < numOfTopFreq; i++) 
+    for (size_t i = 0; i < numOfTopFreq; i++)
     {
         pWrite[i] = temp[0][i];
     }
-    
+
     return 0;
 }
 
@@ -462,7 +471,7 @@ int checkForSameFreq(int* curr, int* prev, size_t eleCount,  bool* commonIndices
 
 int ascendingOrder(int* data, size_t eleCount, bool* commonIndicesFlags)
 {
-    for (size_t i = 0; i < eleCount; i++) 
+    for (size_t i = 0; i < eleCount; i++)
     {
         if (commonIndicesFlags[i] == true)
         {
@@ -474,7 +483,7 @@ int ascendingOrder(int* data, size_t eleCount, bool* commonIndicesFlags)
             {
                 continue;
             }
-            if (data[j] < data[i]) 
+            if (data[j] < data[i])
             {
                 float temp = data[i];
                 data[i] = data[j];
@@ -499,7 +508,7 @@ ampBand_s clubAmpBand(ampBand_s ampBandFull)
             {
                 temp[r + cols*ampBandFull.rows] = ampBandFull.data[r + i*ampBandFull.rows] + temp[r + cols*ampBandFull.rows];
             }
-            else 
+            else
             {
                 cols += 1;
                 temp[r + cols*ampBandFull.rows] = ampBandFull.data[r + i*ampBandFull.rows];
@@ -526,7 +535,7 @@ int addToHashTable(audioInfo_s audioInfo,  hashIndex_s hashIndex)
 {
     for (size_t r = 0; r < audioInfo.ampBandclubbed.rows; r++)
     {
-        for (size_t c = 0; c < audioInfo.ampBandclubbed.cols - HASH_INTERVAL + 1; c++) 
+        for (size_t c = 0; c < audioInfo.ampBandclubbed.cols - HASH_INTERVAL + 1; c++)
         {
             size_t hashValue = 0;
             if (audioInfo.ampBandclubbed.data[c*audioInfo.ampBandclubbed.rows + r] == 0)
@@ -558,7 +567,7 @@ int appendHashEntry(entry_s** pexisting, entry_s* toAppend)
     {
         *pexisting = toAppend;
     }
-    else 
+    else
     {
         entry_s* temp = *pexisting;
         for (;temp->next != NULL; temp = temp->next)
@@ -573,7 +582,7 @@ int hashClip(clipHashVals_s* clipHashVals, ampBand_s clubbedAmpBand)
     size_t divisions = (size_t)(clubbedAmpBand.cols / HASH_INTERVAL); //divs in one row
     clipHashVals->num = divisions*clubbedAmpBand.rows;
     clipHashVals->vals = malloc(clipHashVals->num*sizeof(*clipHashVals->vals));
-    for (size_t i = 0; i < clubbedAmpBand.rows; i++) 
+    for (size_t i = 0; i < clubbedAmpBand.rows; i++)
     {
         size_t hashVal = 0;
         for (size_t j = 0; j < divisions; j += HASH_INTERVAL)
@@ -589,31 +598,31 @@ int hashClip(clipHashVals_s* clipHashVals, ampBand_s clubbedAmpBand)
 
 int addToDatabase(audioInfo_s audioInfo)
 {
-    FILE* bin = fopen("audio.txt", "wb");
+    FILE* bin = fopen("audio.txt", "ab");
         if (bin == NULL)
         {
             printf("failed to open database file\n");
             return -1;
         }
-    
+
         fwrite(&audioInfo.audioId, sizeof(audioInfo.audioId), 1, bin);
         fwrite(audioInfo.name, sizeof(char), sizeof(audioInfo.name), bin);
-    
+
         fwrite(&audioInfo.ampBandclubbed.rows, sizeof(size_t), 1, bin);
         fwrite(&audioInfo.ampBandclubbed.cols, sizeof(size_t), 1, bin);
         fwrite(audioInfo.ampBandclubbed.data, sizeof(int),
                audioInfo.ampBandclubbed.rows * audioInfo.ampBandclubbed.cols, bin);
-    
+
         fwrite(&audioInfo.ampBandFull.rows, sizeof(size_t), 1, bin);
         fwrite(&audioInfo.ampBandFull.cols, sizeof(size_t), 1, bin);
         fwrite(audioInfo.ampBandFull.data, sizeof(int),
                audioInfo.ampBandFull.rows * audioInfo.ampBandFull.cols, bin);
-    
+
         fclose(bin);
         return 0;
 }
 
-typedef struct 
+typedef struct
 {
     size_t audioId;
     size_t votes;
