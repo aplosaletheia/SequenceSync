@@ -1,7 +1,6 @@
 //ONLY STD LIBRARIES
 
 #include <assert.h>
-#include <corecrt_math_defines.h>
 #include <string.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -23,6 +22,7 @@
 typedef struct
 {
     FILE* wavFile;
+    char name[100];
     char command; // either add to database (a) or get recommendations (r)
 } input_s;
 
@@ -94,7 +94,7 @@ typedef struct
 
 // function declarations
 int initHashTable(hashIndex_s*);
-size_t bootDatabase(hashIndex_s*);
+audioCat_s bootDatabase(hashIndex_s*);
 input_s getInput(); //ND
 wavInfo_s wavDecoder(FILE*);
 void getSamples(FILE*, int16_t*);
@@ -104,30 +104,40 @@ int addToDatabase(audioInfo_s);
 int addToHashTable(audioInfo_s, hashIndex_s);
 int appendHashEntry(entry_s**, entry_s*);
 int hashClip(clipHashVals_s*, ampBand_s);
-int filter1(audioSet_s*, hashIndex_s, audioInfo_s);
-int filter2(audioSet_s*, hashIndex_s, audioInfo_s);
+int filter1(audioSet_s*, hashIndex_s, clipHashVals_s);
+int filter2(audioSet_s*, audioCat_s, audioInfo_s);
 
 int main()
 {
     hashIndex_s hashIndex;
     hashIndex.numBuckets = NUM_BUCKETS;
     initHashTable(&hashIndex);
-    size_t currId = bootDatabase(&hashIndex);
+    printf("booting up database...\n");
+    audioCat_s catalogue = bootDatabase(&hashIndex);
+    size_t currId = catalogue.numIds - 1;
     
     input_s input = getInput();
-    const wavInfo_s wavInfo = wavDecoder(input.wavFile); //the samples will be in heap
-
-    audioInfo_s audioInfo;
-    audioInfo.audioId = currId + 1;
+    printf("decoding .wav file...\n");
+    wavInfo_s wavInfo = wavDecoder(input.wavFile); //the samples will be in heap
     
+    audioInfo_s audioInfo;
+    strcpy(audioInfo.name, input.name);
+    audioInfo.audioId = currId + 1;
+
+    printf("breaking down the audio...");
     audioInfo.ampBandFull = fullAmpBand(&wavInfo); //dont remember why I passed the address
     audioInfo.ampBandclubbed = clubAmpBand(audioInfo.ampBandFull);
+    printf("done\n");
+
     
     //add to database
     if (input.command == 'a')
     {
         printf("adding to data base...\n");
-        addToDatabase(audioInfo);
+        if (addToDatabase(audioInfo) == 0)
+        {
+            printf("sucessfully added to database (audio.txt)\n");
+        }
     }
     //give recommendations
     else if (input.command == 'r')
@@ -135,8 +145,12 @@ int main()
         clipHashVals_s clipHashVals;
         hashClip(&clipHashVals, audioInfo.ampBandclubbed);
         audioSet_s filteredAudios = {0, NULL};
-        filter1(&filteredAudios, hashIndex, audioInfo); //passing address so that i can change count..This will need to access the database
-        filter2(&filteredAudios, );
+        filter1(&filteredAudios, hashIndex, clipHashVals); //passing address so that i can change count..This will need to access the database
+        filter2(&filteredAudios, catalogue, audioInfo);
+        for (size_t i = 0; i < filteredAudios.numIds; i++) 
+        {
+            printf("%s, ", catalogue.audioInfos[filteredAudios.audioIds[i]].name);
+        }
     }
     
 }
@@ -154,20 +168,52 @@ int appentToCat(audioCat_s *audioCat, audioInfo_s audioinfo)
     audioCat->numIds++;
 }
 
-size_t bootDatabase(hashIndex_s* hashIndex)
+audioCat_s bootDatabase(hashIndex_s* hashIndex)
 {
     audioCat_s catalogue;
-    catalogue.numIds = 100;
-    catalogue.audioInfos = malloc(catalogue.numIds*sizeof(*catalogue.audioInfos));
-    
-    size_t i = 0;
-    for (; ; i++) 
+    catalogue.numIds = 0;
+    catalogue.reserved = 100;
+    catalogue.audioInfos = malloc(catalogue.reserved*sizeof(*catalogue.audioInfos));
+
+    size_t maxId = 0;
+    FILE* bin = fopen("audio.txt", "rb");
+    if (bin == NULL)
     {
-        audioInfo_s audioInfo; //get song from file on disk (give this code)
+        printf("no data file, please make a .txt in the same folder as this\n");
+        exit(0);
+    }
+
+    while (1)
+    {
+        audioInfo_s audioInfo;
+
+        if (fread(&audioInfo.audioId, sizeof(audioInfo.audioId), 1, bin) != 1) break; // clean EOF
+        if (fread(audioInfo.name, sizeof(char), sizeof(audioInfo.name), bin) != sizeof(audioInfo.name)) break;
+
+        if (fread(&audioInfo.ampBandclubbed.rows, sizeof(size_t), 1, bin) != 1) break;
+        if (fread(&audioInfo.ampBandclubbed.cols, sizeof(size_t), 1, bin) != 1) break;
+        size_t clubbedCount = audioInfo.ampBandclubbed.rows * audioInfo.ampBandclubbed.cols;
+        audioInfo.ampBandclubbed.data = malloc(clubbedCount * sizeof(int));
+        if (fread(audioInfo.ampBandclubbed.data, sizeof(int), clubbedCount, bin) != clubbedCount) break;
+
+        if (fread(&audioInfo.ampBandFull.rows, sizeof(size_t), 1, bin) != 1) break;
+        if (fread(&audioInfo.ampBandFull.cols, sizeof(size_t), 1, bin) != 1) break;
+        size_t fullCount = audioInfo.ampBandFull.rows * audioInfo.ampBandFull.cols;
+        audioInfo.ampBandFull.data = malloc(fullCount * sizeof(int));
+        if (fread(audioInfo.ampBandFull.data, sizeof(int), fullCount, bin) != fullCount) break;
+
+        audioInfo.ampBandFilter2.data = NULL;
+        audioInfo.ampBandFilter2.rows = 0;
+        audioInfo.ampBandFilter2.cols = 0;
+
         appentToCat(&catalogue, audioInfo);
         addToHashTable(audioInfo, *hashIndex);
+
+        if (audioInfo.audioId > maxId) maxId = audioInfo.audioId;
     }
-    
+
+    fclose(bin);
+    return catalogue;
 }
 
 
@@ -179,33 +225,126 @@ int initHashTable(hashIndex_s* hashIndex)
 input_s getInput()
 {
     input_s result;
-    printf("file name please (don't forget the .wav) MAX NAME LENGTH IS 20 (inclusive of the .wav (4 char))\n");
-    char fileName[21];
-    scanf("%s", fileName); 
+    printf("file name please (don't forget the .wav) MAX NAME LENGTH IS 100 (inclusive of the .wav (4 char))\n");
+    scanf("%s", result.name);
     printf("command -\n");
-    scanf("%c", &result.command);
-    result.wavFile = fopen(fileName, "r");
+    scanf(" %c", &result.command);
+    result.wavFile = fopen(result.name, "rb");
     if (result.wavFile == NULL)
     {
         printf("failed to open file\n");
         exit(1);
     }
+    return result;
 }
 
+uint32_t readLE32(const unsigned char* b)
+{
+    return (uint32_t)b[0] | ((uint32_t)b[1] << 8) | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
+}
 
+uint16_t readLE16(const unsigned char* b)
+{
+    return (uint16_t)(b[0] | (b[1] << 8));
+}
+    
 wavInfo_s wavDecoder(FILE* wavFile)
 {
     wavInfo_s wavInfo;
-    //maybe add a check to make sure that the file is a wav file internally
-    
+    memset(&wavInfo, 0, sizeof(wavInfo));
 
-    wavInfo.sampleCount = wavInfo.sampleRate*wavInfo.dataSize/wavInfo.byteRate;
-    wavInfo.samples = malloc(wavInfo.sampleCount*sizeof(*wavInfo.samples));
+    unsigned char header[12];
+    if (fread(header, 1, 12, wavFile) != 12 ||
+        memcmp(header, "RIFF", 4) != 0 ||
+        memcmp(header + 8, "WAVE", 4) != 0)
+    {
+        printf("not a valid wav file\n");
+        exit(1);
+    }
 
-    //cpy samples to samples hahaha
+    int haveFmt = 0;
+    int haveData = 0;
+    unsigned char chunkHeader[8];
+
+    // walk chunks until we've found both fmt and data (or hit EOF)
+    while (fread(chunkHeader, 1, 8, wavFile) == 8)
+    {
+        char chunkId[5] = {0};
+        memcpy(chunkId, chunkHeader, 4);
+        uint32_t chunkSize = readLE32(chunkHeader + 4);
+
+        if (memcmp(chunkId, "fmt ", 4) == 0)
+        {
+            unsigned char fmtBuf[16];
+            if (chunkSize < 16 || fread(fmtBuf, 1, 16, wavFile) != 16)
+            {
+                printf("bad fmt chunk\n");
+                exit(1);
+            }
+            uint16_t audioFormat = readLE16(fmtBuf + 0);
+            if (audioFormat != 1) // 1 = PCM
+            {
+                printf("only uncompressed PCM wav is supported (got format %u)\n", audioFormat);
+                exit(1);
+            }
+            wavInfo.channels   = readLE16(fmtBuf + 2);
+            wavInfo.sampleRate = readLE32(fmtBuf + 4);
+            wavInfo.byteRate   = readLE32(fmtBuf + 8);
+            uint16_t bitsPerSample = readLE16(fmtBuf + 14);
+            if (bitsPerSample != 16)
+            {
+                printf("only 16-bit PCM wav is supported (got %u bits)\n", bitsPerSample);
+                exit(1);
+            }
+            // fmt chunk may be padded beyond 16 bytes; skip any extra
+            if (chunkSize > 16)
+            {
+                fseek(wavFile, chunkSize - 16, SEEK_CUR);
+            }
+            haveFmt = 1;
+        }
+        else if (memcmp(chunkId, "data", 4) == 0)
+        {
+            wavInfo.dataSize = chunkSize;
+            wavInfo.samples = malloc(chunkSize); // chunkSize bytes; sample count derived below
+            if (wavInfo.samples == NULL)
+            {
+                printf("malloc failed for %u bytes of sample data\n", chunkSize);
+                exit(1);
+            }
+            if (fread(wavInfo.samples, 1, chunkSize, wavFile) != chunkSize)
+            {
+                printf("failed to read expected %u bytes of sample data\n", chunkSize);
+                exit(1);
+            }
+            haveData = 1;
+            break; // we have what we need; stop walking chunks
+        }
+        else
+        {
+            // unknown/irrelevant chunk (LIST, fact, etc.) - skip it
+            fseek(wavFile, chunkSize, SEEK_CUR);
+        }
+
+        // chunks are word-aligned; skip one pad byte if chunkSize is odd
+        if (chunkSize % 2 != 0)
+        {
+            fseek(wavFile, 1, SEEK_CUR);
+        }
+    }
+
+    if (!haveFmt || !haveData)
+    {
+        printf("wav file missing fmt or data chunk\n");
+        exit(1);
+    }
+
+    wavInfo.sampleCount = wavInfo.dataSize / sizeof(int16_t); // total samples across all channels
+    wavInfo.duration = (float)wavInfo.dataSize / (float)wavInfo.byteRate; // seconds
     
     return wavInfo;
 }
+
 
 
 int shortFourier(const wavInfo_s*, float*, size_t, size_t);
@@ -450,12 +589,88 @@ int hashClip(clipHashVals_s* clipHashVals, ampBand_s clubbedAmpBand)
 
 int addToDatabase(audioInfo_s audioInfo)
 {
+    FILE* bin = fopen("audio.txt", "wb");
+        if (bin == NULL)
+        {
+            printf("failed to open database file\n");
+            return -1;
+        }
     
+        fwrite(&audioInfo.audioId, sizeof(audioInfo.audioId), 1, bin);
+        fwrite(audioInfo.name, sizeof(char), sizeof(audioInfo.name), bin);
+    
+        fwrite(&audioInfo.ampBandclubbed.rows, sizeof(size_t), 1, bin);
+        fwrite(&audioInfo.ampBandclubbed.cols, sizeof(size_t), 1, bin);
+        fwrite(audioInfo.ampBandclubbed.data, sizeof(int),
+               audioInfo.ampBandclubbed.rows * audioInfo.ampBandclubbed.cols, bin);
+    
+        fwrite(&audioInfo.ampBandFull.rows, sizeof(size_t), 1, bin);
+        fwrite(&audioInfo.ampBandFull.cols, sizeof(size_t), 1, bin);
+        fwrite(audioInfo.ampBandFull.data, sizeof(int),
+               audioInfo.ampBandFull.rows * audioInfo.ampBandFull.cols, bin);
+    
+        fclose(bin);
+        return 0;
+}
+
+typedef struct 
+{
+    size_t audioId;
+    size_t votes;
+} vote_s;
+
+int filter1(audioSet_s* pWriteAudioId, hashIndex_s hashIndex, clipHashVals_s clipHashVals)
+{
+    vote_s* votes = NULL;
+    size_t voteCount = 0;
+
+    for (size_t i = 0; i < clipHashVals.num; i++)
+    {
+        size_t bucket = clipHashVals.vals[i];
+        for (entry_s* e = hashIndex.buckets[bucket]; e != NULL; e = e->next)
+        {
+            bool found = false;
+            for (size_t v = 0; v < voteCount; v++)
+            {
+                if (votes[v].audioId == e->audioId)
+                {
+                    votes[v].votes++;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                vote_s* grown = realloc(votes, (voteCount + 1) * sizeof(*votes));
+                if (!grown) { free(votes); free(clipHashVals.vals); return -1; }
+                votes = grown;
+                votes[voteCount].audioId = e->audioId;
+                votes[voteCount].votes = 1;
+                voteCount++;
+            }
+        }
+    }
+    free(clipHashVals.vals);
+
+    #define FILTER1_MIN_VOTES 3
+    pWriteAudioId->numIds = 0;
+    pWriteAudioId->audioIds = NULL;
+    for (size_t v = 0; v < voteCount; v++)
+    {
+        if (votes[v].votes >= FILTER1_MIN_VOTES)
+        {
+            size_t* grown = realloc(pWriteAudioId->audioIds, (pWriteAudioId->numIds + 1) * sizeof(size_t));
+            if (!grown) { free(votes); return -1; }
+            pWriteAudioId->audioIds = grown;
+            pWriteAudioId->audioIds[pWriteAudioId->numIds++] = votes[v].audioId;
+        }
+    }
+    free(votes);
+    return 0;
 }
 
 
-
-int filter1(audioSet_s* pWriteAudioId, hashIndex_s hashIndex, audioInfo_s audioInfo)
+int filter2(audioSet_s* audioSet, audioCat_s catalogue, audioInfo_s clipInfo)
 {
-    
+    return 0;
 }
