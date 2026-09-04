@@ -23,9 +23,6 @@ Because the program would just quietly fail, I had to turn off massive chunks of
 
 It turned out I had completely messed up the arguments requiring pointer arithmetic when passing my multidimensional arrays between functions. Once I finally spotted the root cause in one function, I had to hunt down the identical logic error across the entire codebase. (Full disclosure: one of these bugs still survived into the final submission!).
 
-### The Brutal Cuts: Simplifications and Incompleteness
-By the second-to-last day, I realized my planning was flawed. I had taken on way too big of a project for a 72-hour window. I had to give up on making the "complete" version I originally envisioned and brutally simplify or straight-up remove several important features.
-
 ### What the Standard Library Made Painful
 In C, the standard library is basically just files, sockets, and standard output. The two biggest pain points were:
 
@@ -33,7 +30,7 @@ In C, the standard library is basically just files, sockets, and standard output
 2. **O(N²) Math Limits:** Writing the math for the Discrete Fourier Transform was straightforward, but without an external library like `fftw3`, my implementation was a naive $O(N^2)$ algorithm. It is incredibly slow. A Fast Fourier Transform (FFT) at $O(N \log N)$ is vastly superior, but building a highly optimized FFT from scratch within a 72-hour window on top of a database and parser was simply out of scope. 
 
 ### The Takeaway
-I bit off way more than I could chew. By the second-to-last day, I realized the scope was too massive for 72 hours and had to brutally cut features to ship a working artifact. 
+I bit off way more than I could chew. By the second-to-last day, I realized the scope was too massive for 72 hours and had to brutally cut features to ship a working (doesn't work perfectly) artifact. 
 
 But the zero-dependency constraint taught me a valuable lesson. It proved that while doing complex DSP math without a library will tank your performance, everyday tasks like file I/O, writing a database, and parsing binary headers are entirely doable with nothing but `libc`. 
 
