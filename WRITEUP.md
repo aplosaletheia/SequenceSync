@@ -2,7 +2,7 @@
 
 I have a habit of getting hooked on a specific song and looping it for hours because I simply cannot find another track with the exact same musical "vibe." For the Zero Dependency Hackathon, I decided to solve my own problem: I built a song recommender that analyzes the top 10 musical note amplitudes to find tracks with similar tonal shifts. 
 
-Because I like a challenge (and because this is only my third programming project ever), I chose **Track F (Wildcard)** and wrote the entire thing in **C**, using only `libc`. No external audio parsing, no math libraries, no database engines. 
+Because I like a challenge, I chose Track F (Wildcard) and wrote the entire thing in C, using only libc. Going into this, I had very little experience—this is my first hackathon and only my third programming project ever. I had no business writing a custom audio parser or database from scratch, but I wanted to see how far I could push myself. No external audio parsing, no math libraries, no database engines. 
 
 Here is how I survived 72 hours in raw C, what I built, and the pointer arithmetic that almost broke me.
 
@@ -30,7 +30,7 @@ In C, the standard library is basically just files, sockets, and standard output
 2. **O(N²) Math Limits:** Writing the math for the Discrete Fourier Transform was straightforward, but without an external library like `fftw3`, my implementation was a naive $O(N^2)$ algorithm. It is incredibly slow. A Fast Fourier Transform (FFT) at $O(N \log N)$ is vastly superior, but building a highly optimized FFT from scratch within a 72-hour window on top of a database and parser was simply out of scope. 
 
 ### The Takeaway
-I bit off way more than I could chew. By the second-to-last day, I realized the scope was too massive for 72 hours and had to brutally cut features to ship a working (doesn't work perfectly) artifact. 
+The experience of this hackathon was an absolute trial by fire. I bit off way more than I could chew. Working under a 72-hour ticking clock while simultaneously trying to learn new computer science concepts like hash maps was exhausting. By the second-to-last day, I realized the scope was too massive and had to brutally cut features just to ship a working (if imperfect) artifact.
 
 But the zero-dependency constraint taught me a valuable lesson. It proved that while doing complex DSP math without a library will tank your performance, everyday tasks like file I/O, writing a database, and parsing binary headers are entirely doable with nothing but `libc`. 
 
