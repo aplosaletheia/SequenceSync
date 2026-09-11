@@ -1,5 +1,7 @@
 # SequenceSync
 
+**INCOMPLETE**
+
 # Zero-Dep Audio Fingerprinter
 
 A CLI tool that acts as an acoustic fingerprinting engine (similar to Shazam). It ingests `.wav` files, manually breaks them down into frequency bands using a custom Short-Time Fourier Transform, hashes the dominant frequencies into acoustic "constellations," and matches them against an embedded custom binary database.
